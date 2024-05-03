@@ -1,4 +1,4 @@
-from utilities.init import parse_arguments, initialize_socket
+from utilities.init import parse_arguments, initialize_socket, generate_keys
 
 
 class Server:
@@ -8,9 +8,9 @@ class Server:
         """
         self.name, self.ip, self.port = parse_arguments()
         self.own_socket = initialize_socket(self.ip, self.port)
-        # TODO: Make public/private key pair
+        self.pvt_key, self.pub_key = generate_keys()
         self.sockets = [self.own_socket]
-        self.client_info = {}  # Key: IP, Value: Name
+        self.client_dict = {}  # Key: IP, Value: (name, shared_secret)
 
     def start(self):
         """

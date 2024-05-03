@@ -1,8 +1,10 @@
 import getopt
 import ipaddress
+import secrets
 import socket
 import sys
 from _socket import SO_REUSEADDR, SOL_SOCKET
+from tinyec import registry
 from utilities.constants import INVALID_SRC_IP_ARG_ERROR, INVALID_SRC_PORT_RANGE, \
     INVALID_FORMAT_SRC_PORT_ARG_ERROR, INVALID_FORMAT_DST_PORT_ARG_ERROR, INVALID_DST_IP_ARG_ERROR, \
     INVALID_DST_PORT_RANGE, MIN_PORT, MAX_PORT
@@ -89,6 +91,19 @@ def initialize_socket(ip: str, port: int):
         sys.exit("[+] INIT ERROR: An error has occurred while creating socket object ({})".format(e))
 
 
-def create_keys():
-    return None
+def generate_keys():
+    """
+    Generates a public/private key pair using
+    the brainpool256r1 elliptic curve.
 
+    @return: private_key, public_key
+    """
+    # Define BrainPool 256-bit Elliptic Curve
+    curve = registry.get_curve('brainpoolP256r1')
+
+    # Generate Private Key (a random int from [1, n-1])
+    private_key = secrets.randbelow(curve.field.n)
+
+    # Generate Public Key (a * G)
+    public_key = private_key * curve.g
+    return private_key, public_key
