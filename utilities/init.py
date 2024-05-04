@@ -6,57 +6,41 @@ import sys
 from _socket import SO_REUSEADDR, SOL_SOCKET
 from tinyec import registry
 from utilities.constants import INVALID_SRC_IP_ARG_ERROR, INVALID_SRC_PORT_RANGE, \
-    INVALID_FORMAT_SRC_PORT_ARG_ERROR, INVALID_FORMAT_DST_PORT_ARG_ERROR, INVALID_DST_IP_ARG_ERROR, \
-    INVALID_DST_PORT_RANGE, MIN_PORT, MAX_PORT
+    INVALID_FORMAT_SRC_PORT_ARG_ERROR, MIN_PORT_VALUE, MAX_PORT_VALUE
 
 
 def parse_arguments():
     """
     Parse the command line for arguments.
 
-    @return name:
-        A string containing the name
+    @return name, src_ip, src_port:
+        Strings containing name, source IP address and source port
     """
     # Initialize variables
-    name, src_ip, src_port, dst_ip, dst_port = "", "", "", "", ""
+    name, src_ip, src_port = "", "", ""
     arguments = sys.argv[1:]
-    longopts = ['name=', 'src_ip=', 'src_port=', 'dst_ip=', 'dst_port=']
-    opts, user_list_args = getopt.getopt(arguments, 'n:s:p:d:c:', longopts)
+    opts, user_list_args = getopt.getopt(arguments, 'n:s:p:')
 
     if len(opts) == 0:
         sys.exit("[+] INIT ERROR: No arguments were provided!")
 
     for opt, argument in opts:
-        if opt in ('-n', '--name'):  # For name
+        if opt == '-n':  # For name
             name = argument
 
-        if opt in ('-s', '--src_ip'):  # For source IP
+        if opt == '-s':  # For source IP
             try:
                 src_ip = str(ipaddress.ip_address(argument))
             except ValueError as e:
                 sys.exit(INVALID_SRC_IP_ARG_ERROR.format(e))
 
-        if opt in ('-p', '--src_port'):  # For source port
+        if opt == '-p':  # For source port
             try:
                 src_port = int(argument)
-                if not (MIN_PORT < src_port < MAX_PORT):
+                if not (MIN_PORT_VALUE <= src_port < MAX_PORT_VALUE):
                     sys.exit(INVALID_SRC_PORT_RANGE)
             except ValueError as e:
                 sys.exit(INVALID_FORMAT_SRC_PORT_ARG_ERROR.format(e))
-
-        if opt in ('-d', '--dst_ip'):  # For destination IP (optional)
-            try:
-                dst_ip = str(ipaddress.ip_address(argument))
-            except ValueError as e:
-                sys.exit(INVALID_DST_IP_ARG_ERROR.format(e))
-
-        if opt in ('-c', '--dst_port'):  # For destination port (optional)
-            try:
-                dst_port = int(argument)
-                if not (MIN_PORT < dst_port < MAX_PORT):
-                    sys.exit(INVALID_DST_PORT_RANGE)
-            except ValueError as e:
-                sys.exit(INVALID_FORMAT_DST_PORT_ARG_ERROR.format(e))
 
     # Check if parameters are provided
     if len(name) == 0:
@@ -66,7 +50,7 @@ def parse_arguments():
     if len(str(src_port)) == 0:
         sys.exit("[+] INIT ERROR: A source port was not provided! (-p option)")
 
-    return name, src_ip, src_port, dst_ip, dst_port
+    return name, src_ip, src_port
 
 
 def initialize_socket(ip: str, port: int):

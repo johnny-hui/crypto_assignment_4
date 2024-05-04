@@ -1,8 +1,15 @@
 import hashlib
+import ipaddress
 import secrets
+import socket
+from typing import TextIO
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from prettytable import PrettyTable
 from tinyec.ec import Inf
+from utilities.constants import MENU_TITLE, MENU_FIELD_OPTION, MENU_FIELD_DESC, MENU_OPTIONS_LIST, SEND_MESSAGE_OPTION, \
+    SERVER_MENU_OPTIONS_LIST, INVALID_MENU_SELECTION, MENU_ACTION_START_MSG, INVALID_INPUT_MENU_ERROR, MIN_PORT_VALUE, \
+    MAX_PORT_VALUE
 
 
 def derive_shared_secret(pvt_key: int, pub_key: Inf):
@@ -95,3 +102,175 @@ def decrypt(cipher_text: bytes, key: bytes, IV: bytes):
     cipher = AES.new(key, AES.MODE_CBC, IV)
     plain_text = unpad(cipher.decrypt(cipher_text), AES.block_size)
     return plain_text
+
+
+def display_menu(is_connected: bool = False, is_server: bool = False):
+    """
+    Displays the menu for user commands.
+
+    @param is_connected:
+        A boolean determining whether a client is connected
+
+    @param is_server:
+        A boolean representing whether calling class is Server
+        (display server menu options)
+
+    @return: None
+    """
+    menu = PrettyTable()
+    menu.title = MENU_TITLE
+    menu.field_names = [MENU_FIELD_OPTION, MENU_FIELD_DESC]
+
+    if is_server:
+        for item in SERVER_MENU_OPTIONS_LIST:
+            menu.add_row(item)
+
+    if is_connected:
+        for item in MENU_OPTIONS_LIST:
+            menu.add_row(item)
+    else:
+        menu.add_row(SEND_MESSAGE_OPTION)
+        for item in MENU_OPTIONS_LIST[1:]:
+            menu.add_row(item)
+
+    print(menu)
+
+
+def get_user_menu_option(fd: TextIO, min_num_options: int, max_num_options: int):
+    """
+    Gets the user selection for the menu.
+
+    @param fd:
+        The file descriptor for standard input
+
+    @param min_num_options:
+        The minimum number of options possible
+
+    @param max_num_options:
+        The maximum number of options possible
+
+    @return: command
+        An integer representing the selection
+    """
+    command = fd.readline().strip()
+
+    try:
+        command = int(command)
+        while not (min_num_options <= command <= max_num_options):
+            print(INVALID_MENU_SELECTION.format(min_num_options, max_num_options))
+            command = fd.readline().strip()
+        print(MENU_ACTION_START_MSG.format(command))
+        return command
+    except ValueError as e:
+        print(INVALID_INPUT_MENU_ERROR.format(e))
+        print(INVALID_MENU_SELECTION.format(min_num_options, max_num_options))
+    except TypeError as e:
+        print(INVALID_INPUT_MENU_ERROR.format(e))
+        print(INVALID_MENU_SELECTION.format(min_num_options, max_num_options))
+
+
+def __get_target_ip():
+    """
+    A helper function that gets the target IP address
+    from user prompt.
+
+    @raise ValueError
+        Exception raised if the target IP address is invalid
+
+    @return: ip_address
+        A string representing the target IP address
+    """
+    while True:
+        try:
+            ip_input = input("[+] Enter the IP address of the target server: ")
+            ip_address = str(ipaddress.ip_address(ip_input))
+            return ip_address
+        except ValueError:
+            print("[+] Invalid IP address; please enter again.\n")
+
+
+def __get_target_port():
+    """
+    A helper function that gets the target port
+    from user prompt.
+
+    @raise ValueError:
+        Exception raised if the target port is of invalid format
+
+    @raise TypeError:
+        Exception raised if the user inputs not an integer value
+
+    @return: port
+        An integer representing the target port
+    """
+    while True:
+        try:
+            port = int(input("\n[+] Enter the port number of the target server: "))
+            while port not in range(MIN_PORT_VALUE, MAX_PORT_VALUE):
+                print("[+] Invalid port number range; please enter again.")
+                port = int(input("\n[+] Enter the port number of the target server: "))
+            return port
+        except ValueError as e:
+            print("[+] Invalid port number ({}); please enter again.".format(e))
+        except TypeError as e:
+            print("[+] Invalid port number ({}); please enter again.".format(e))
+
+
+def connect_to_a_server(self: object):
+    """
+    Prompts the user for the target IP address and port, and
+    connects to the target using sockets.
+
+    @raise socket.error
+        Exception raised if the target host is offline or
+        incorrect host information
+
+    @param self:
+        The calling object
+
+    @return: None
+    """
+    target_ip = __get_target_ip()
+    target_port = __get_target_port()
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((target_ip, target_port))
+        self.is_connected = True
+        self.server_socket = sock
+        self.sockets.append(sock)
+        print(f"[+] CONNECTION SUCCESS: Successfully connected to server! ({target_ip}, {target_port})")
+
+        # TODO: Exchange Keys (client send first; server waits recv())
+    except socket.error as e:
+        print("[+] CONNECTION FAILED: Failed to connect to target server ({}); please try again".format(e))
+
+
+def exchange_public_keys(client_sock: socket.socket):
+    # TODO: This function
+    print("[+] EXCHANGE KEYS: Now exchanging keys with new client...")
+
+
+def accept_new_connection_handler(self: object, own_sock: socket.socket):
+    """
+    A handler to accept a new client connection, which involves
+    the ECDH public key exchange process and generation
+    of shared secret with the client.
+
+    @param self:
+        A reference to the calling Server class object
+
+    @param own_sock:
+        The socket object of the calling class
+
+    @return: None
+    """
+    client_socket, client_address = own_sock.accept()
+    print(f"[+] NEW CONNECTION: Accepted a client connection from ({client_address[0]}, {client_address[1]})!")
+
+    self.sockets.append(client_socket)
+    exchange_public_keys(client_socket)
+
+
+def send_message(sock: socket.socket):
+    print("PLACEHOLDER")
