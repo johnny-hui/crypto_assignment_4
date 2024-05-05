@@ -6,7 +6,8 @@ import sys
 from _socket import SO_REUSEADDR, SOL_SOCKET
 from tinyec import registry
 from utilities.constants import INVALID_SRC_IP_ARG_ERROR, INVALID_SRC_PORT_RANGE, \
-    INVALID_FORMAT_SRC_PORT_ARG_ERROR, MIN_PORT_VALUE, MAX_PORT_VALUE
+    INVALID_FORMAT_SRC_PORT_ARG_ERROR, MIN_PORT_VALUE, MAX_PORT_VALUE, MODE_SERVER
+from utilities.utility import compress
 
 
 def parse_arguments():
@@ -70,15 +71,20 @@ def initialize_socket(ip: str, port: int):
         sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         sock.bind((ip, port))
         sock.listen(5)  # Listen for incoming connections (maximum 5 clients in the queue)
+        print(f"[+] Socket has been initialized and is now listening on {ip} | (Port {port})")
         return sock
     except socket.error as e:
         sys.exit("[+] INIT ERROR: An error has occurred while creating socket object ({})".format(e))
 
 
-def generate_keys():
+def generate_keys(mode: str):
     """
     Generates a public/private key pair using
     the brainpool256r1 elliptic curve.
+
+    @param mode:
+        A string that declares whether calling class is
+        a 'Server' or 'Client'
 
     @return: private_key, public_key
     """
@@ -90,4 +96,13 @@ def generate_keys():
 
     # Generate Public Key (a * G)
     public_key = private_key * curve.g
+    print("[+] ECDH Private/Public Key pairs have been successfully generated!")
+
+    if mode == MODE_SERVER:
+        print(f"[+] Server private key: {compress(private_key)}")
+        print(f"[+] Server public key: {compress(public_key)}")
+    else:
+        print(f"[+] Client private key: {compress(private_key)}")
+        print(f"[+] Client public key: {compress(public_key)}")
+
     return private_key, public_key

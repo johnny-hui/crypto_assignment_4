@@ -1,18 +1,18 @@
 import hashlib
 import ipaddress
-import secrets
+import pickle
 import socket
 from typing import TextIO
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from prettytable import PrettyTable
 from tinyec.ec import Inf
-from utilities.constants import MENU_TITLE, MENU_FIELD_OPTION, MENU_FIELD_DESC, MENU_OPTIONS_LIST, SEND_MESSAGE_OPTION, \
+from utilities.constants import MENU_TITLE, MENU_FIELD_OPTION, MENU_FIELD_DESC, CLIENT_MENU_OPTIONS_LIST, SEND_MESSAGE_OPTION, \
     SERVER_MENU_OPTIONS_LIST, INVALID_MENU_SELECTION, MENU_ACTION_START_MSG, INVALID_INPUT_MENU_ERROR, MIN_PORT_VALUE, \
     MAX_PORT_VALUE
 
 
-def derive_shared_secret(pvt_key: int, pub_key: Inf):
+def derive_shared_secret(pvt_key: int, pub_key):
     """
     Derives the shared secret between a private key
     and another host's public key by performing ECC point
@@ -62,7 +62,7 @@ def compress_shared_secret(shared_secret: Inf):
     return compressed_key
 
 
-def encrypt(plain_text: bytes, key: bytes):
+def encrypt(plain_text: bytes, shared_secret: bytes, IV: bytes):
     """
     Uses an AES cipher to encrypt plaintext with a 32-byte
     shared secret key derived from ECDH.
@@ -71,18 +71,21 @@ def encrypt(plain_text: bytes, key: bytes):
         An array of bytes containing data of the plain text
         to be encrypted
 
-    @param key:
+    @param shared_secret:
         Bytes of the shared secret key
 
-    @return: cipher_text, cipher.IV
-        The encrypted cipher text and the initialization vector (IV)
+    @param IV:
+        A randomly generated n-bytes for initialization vector (IV)
+
+    @return: cipher_text
+        The encrypted cipher text
     """
-    cipher = AES.new(key, mode=AES.MODE_CBC, iv=secrets.token_bytes(16))
+    cipher = AES.new(shared_secret, mode=AES.MODE_CBC, iv=IV)
     ciphertext = cipher.encrypt(pad(plain_text, AES.block_size))  # Default padding with PKCS7
-    return ciphertext, cipher.IV
+    return ciphertext
 
 
-def decrypt(cipher_text: bytes, key: bytes, IV: bytes):
+def decrypt(cipher_text: bytes, shared_secret: bytes, IV: bytes):
     """
     Uses an AES cipher to decrypt ciphertext with a 32-byte
     shared secret key derived from ECDH.
@@ -90,7 +93,7 @@ def decrypt(cipher_text: bytes, key: bytes, IV: bytes):
     @param cipher_text:
         An array of bytes containing encrypted data
 
-    @param key:
+    @param shared_secret:
         Bytes of the shared secret key
 
     @param IV:
@@ -99,7 +102,7 @@ def decrypt(cipher_text: bytes, key: bytes, IV: bytes):
     @return: plain_text
         An array of bytes containing decrypted data
     """
-    cipher = AES.new(key, AES.MODE_CBC, IV)
+    cipher = AES.new(shared_secret, AES.MODE_CBC, IV)
     plain_text = unpad(cipher.decrypt(cipher_text), AES.block_size)
     return plain_text
 
@@ -126,11 +129,11 @@ def display_menu(is_connected: bool = False, is_server: bool = False):
             menu.add_row(item)
 
     if is_connected:
-        for item in MENU_OPTIONS_LIST:
+        for item in CLIENT_MENU_OPTIONS_LIST:
             menu.add_row(item)
     else:
         menu.add_row(SEND_MESSAGE_OPTION)
-        for item in MENU_OPTIONS_LIST[1:]:
+        for item in CLIENT_MENU_OPTIONS_LIST[1:]:
             menu.add_row(item)
 
     print(menu)
@@ -216,7 +219,7 @@ def __get_target_port():
             print("[+] Invalid port number ({}); please enter again.".format(e))
 
 
-def connect_to_a_server(self: object):
+def connect_to_server(self: object):
     """
     Prompts the user for the target IP address and port, and
     connects to the target using sockets.
@@ -236,40 +239,112 @@ def connect_to_a_server(self: object):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((target_ip, target_port))
+        print(f"[+] CONNECTION EVENT: Established a connection to server! ({target_ip}, {target_port})")
+        print("[+] KEY EXCHANGE: Now exchanging keys with the server...")
+
+        # Bind class attributes
         self.is_connected = True
         self.server_socket = sock
         self.sockets.append(sock)
-        print(f"[+] CONNECTION SUCCESS: Successfully connected to server! ({target_ip}, {target_port})")
 
-        # TODO: Exchange Keys (client send first; server waits recv())
+        # Send Public Key to Server
+        serialized_key = pickle.dumps(self.pub_key)
+        sock.sendall(serialized_key)
+
+        # Receive Public Key from Server
+        serialized_server_pub_key = sock.recv(4096)
+        server_pub_key = pickle.loads(serialized_server_pub_key)
+
+        # Send initialization vector (IV) to server
+        sock.send(self.iv)
+
+        # Derive the shared secret
+        shared_secret = derive_shared_secret(self.pvt_key, server_pub_key)
+        self.shared_secret = compress_shared_secret(shared_secret)
+        print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
+              f"session ({compress(shared_secret)})!")
+
+        # Wait for signal to send name
+        sock.recv(1024)
+        sock.send(encrypt(self.name.encode('utf-8'), self.shared_secret, self.iv))
+
     except socket.error as e:
-        print("[+] CONNECTION FAILED: Failed to connect to target server ({}); please try again".format(e))
+        print("[+] CONNECTION FAILED: Failed to connect to target server ({}); please try again.".format(e))
 
 
-def exchange_public_keys(client_sock: socket.socket):
-    # TODO: This function
-    print("[+] EXCHANGE KEYS: Now exchanging keys with new client...")
-
-
-def accept_new_connection_handler(self: object, own_sock: socket.socket):
+def exchange_public_keys(pub_key: Inf, client_sock: socket.socket):
     """
-    A handler to accept a new client connection, which involves
-    the ECDH public key exchange process and generation
+    Performs the ECDH public key exchange process.
+
+    @param pub_key:
+        The public key to send over
+
+    @param client_sock:
+        The client's socket
+
+    @return: client_pub_key
+    """
+    print("[+] KEY EXCHANGE: Now exchanging keys with new client...")
+
+    # Receive Client's Public Key
+    serialized_client_pub_key = client_sock.recv(4096)
+    client_pub_key = pickle.loads(serialized_client_pub_key)
+
+    # Send over the public key to the client
+    serialized_key = pickle.dumps(pub_key)
+    client_sock.sendall(serialized_key)
+    return client_pub_key
+
+
+def accept_new_connection_handler(pvt_key: int, pub_key: Inf, own_sock: socket.socket,
+                                  sockets: list[socket], client_dict: dict):
+    """
+    A server handler to accept a new client connection, which
+    involves the ECDH public key exchange process and generation
     of shared secret with the client.
 
-    @param self:
-        A reference to the calling Server class object
+    @param pvt_key:
+        The calling class's private key (Server)
+
+    @param pub_key:
+        The calling class's public key (Server)
 
     @param own_sock:
         The socket object of the calling class
+
+    @param sockets:
+        A list of sockets
+
+    @param client_dict:
+        A dictionary containing client information
 
     @return: None
     """
     client_socket, client_address = own_sock.accept()
     print(f"[+] NEW CONNECTION: Accepted a client connection from ({client_address[0]}, {client_address[1]})!")
 
-    self.sockets.append(client_socket)
-    exchange_public_keys(client_socket)
+    # Exchange public keys with the client
+    sockets.append(client_socket)
+    client_pub_key = exchange_public_keys(pub_key, client_socket)
+
+    # Receive IV from the client
+    client_iv = client_socket.recv(1024)
+
+    # Derive the shared secret and compress for AES
+    shared_secret = derive_shared_secret(pvt_key, client_pub_key)
+    compressed_shared_secret = compress_shared_secret(shared_secret)
+    print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
+          f"session ({compress(shared_secret)})!")
+
+    # Send signal to get the name of client
+    client_socket.send(encrypt(b"ACK", compressed_shared_secret, client_iv))
+
+    # Receive name from the client (encrypted)
+    name = decrypt(client_socket.recv(1024), compressed_shared_secret, client_iv).decode()
+
+    # Update client dictionary with the new client
+    client_dict[client_address[0]] = [name, compressed_shared_secret, client_iv]
+    print(f"[+] CONNECTION SUCCESS: New client has been added ({name}: [{client_address[0]}, {client_address[1]}])!")
 
 
 def send_message(sock: socket.socket):
