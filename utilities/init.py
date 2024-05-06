@@ -99,10 +99,10 @@ def generate_keys(mode: str):
     print("[+] ECDH Private/Public Key pairs have been successfully generated!")
 
     if mode == MODE_SERVER:
-        print(f"[+] Server private key: {compress(private_key)}")
+        print(f"[+] Server private key: {hex(private_key)}")
         print(f"[+] Server public key: {compress(public_key)}")
     else:
-        print(f"[+] Client private key: {compress(private_key)}")
+        print(f"[+] Client private key: {hex(private_key)}")
         print(f"[+] Client public key: {compress(public_key)}")
 
     return private_key, public_key

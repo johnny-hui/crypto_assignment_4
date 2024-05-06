@@ -7,9 +7,11 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from prettytable import PrettyTable
 from tinyec.ec import Inf
-from utilities.constants import MENU_TITLE, MENU_FIELD_OPTION, MENU_FIELD_DESC, CLIENT_MENU_OPTIONS_LIST, SEND_MESSAGE_OPTION, \
-    SERVER_MENU_OPTIONS_LIST, INVALID_MENU_SELECTION, MENU_ACTION_START_MSG, INVALID_INPUT_MENU_ERROR, MIN_PORT_VALUE, \
-    MAX_PORT_VALUE
+from utilities.constants import (MENU_TITLE, MENU_FIELD_OPTION, MENU_FIELD_DESC, CLIENT_MENU_OPTIONS_LIST,
+                                 SEND_MESSAGE_OPTION, SERVER_MENU_OPTIONS_LIST, INVALID_MENU_SELECTION,
+                                 MENU_ACTION_START_MSG, INVALID_INPUT_MENU_ERROR, MIN_PORT_VALUE,
+                                 MAX_PORT_VALUE, CONNECTION_INFO_FIELD_NAME, CONNECTION_INFO_FIELD_IP,
+                                 CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV)
 
 
 def derive_shared_secret(pvt_key: int, pub_key):
@@ -127,16 +129,64 @@ def display_menu(is_connected: bool = False, is_server: bool = False):
     if is_server:
         for item in SERVER_MENU_OPTIONS_LIST:
             menu.add_row(item)
-
-    if is_connected:
-        for item in CLIENT_MENU_OPTIONS_LIST:
-            menu.add_row(item)
-    else:
+    elif is_connected:
         menu.add_row(SEND_MESSAGE_OPTION)
         for item in CLIENT_MENU_OPTIONS_LIST[1:]:
             menu.add_row(item)
+    else:
+        for item in CLIENT_MENU_OPTIONS_LIST:
+            menu.add_row(item)
 
     print(menu)
+
+
+def view_current_connections(self: object, is_server: bool = False):
+    """
+    Displays information of all current connections.
+
+    @param self:
+        A reference to the calling class object
+
+    @param is_server:
+        A boolean to determine if calling class is a
+        server (default = False)
+
+    @return: None
+    """
+    if len(self.fd_list) > 1:
+        table = PrettyTable()  # => Instantiate table and fill with data
+        table.field_names = [CONNECTION_INFO_FIELD_NAME, CONNECTION_INFO_FIELD_IP,
+                             CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV]
+
+        if is_server:
+            for ip, information in self.client_dict.items():  # Format {ip: information = [name, shared_secret, IV]}
+                table.add_row([information[0], ip, information[1], information[2]])
+        else:
+            table.add_row([self.server_name, self.server_socket.getpeername()[0], self.shared_secret, self.iv])
+
+        print(table)
+    else:
+        print("[+] VIEW CURRENT CONNECTIONS: There are no current connections to view!")
+
+
+def close_application(self: object, is_server: bool = False):
+    """
+    Terminates the application.
+
+    @param self:
+        A reference to the calling class object
+
+    @param is_server:
+        A boolean to determine if calling class is a
+        server (default = False)
+
+    @return: None
+    """
+    print("[+] CLOSE APPLICATION: Now closing the application...")
+    for fd in self.fd_list:
+        fd.close()
+    self.terminate = True
+    print("[+] Application has been terminated!")
 
 
 def get_user_menu_option(fd: TextIO, min_num_options: int, max_num_options: int):
@@ -214,9 +264,9 @@ def __get_target_port():
                 port = int(input("\n[+] Enter the port number of the target server: "))
             return port
         except ValueError as e:
-            print("[+] Invalid port number ({}); please enter again.".format(e))
+            print(f"[+] Invalid port number ({e}); please enter again.")
         except TypeError as e:
-            print("[+] Invalid port number ({}); please enter again.".format(e))
+            print(f"[+] Invalid port number ({e}); please enter again.")
 
 
 def connect_to_server(self: object):
@@ -245,7 +295,7 @@ def connect_to_server(self: object):
         # Bind class attributes
         self.is_connected = True
         self.server_socket = sock
-        self.sockets.append(sock)
+        self.fd_list.append(sock)
 
         # Send Public Key to Server
         serialized_key = pickle.dumps(self.pub_key)
@@ -262,14 +312,14 @@ def connect_to_server(self: object):
         shared_secret = derive_shared_secret(self.pvt_key, server_pub_key)
         self.shared_secret = compress_shared_secret(shared_secret)
         print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
-              f"session ({compress(shared_secret)})!")
+              f"session ({hex(shared_secret)})!")
 
-        # Wait for signal to send name
-        sock.recv(1024)
+        # Receive name of server and send own name
+        self.server_name = decrypt(sock.recv(1024), self.shared_secret, self.iv).decode('utf-8')
         sock.send(encrypt(self.name.encode('utf-8'), self.shared_secret, self.iv))
-
+        print(f"[+] CONNECTION SUCCESS: A secure session with {self.server_name} has been established!")
     except socket.error as e:
-        print("[+] CONNECTION FAILED: Failed to connect to target server ({}); please try again.".format(e))
+        print(f"[+] CONNECTION FAILED: Failed to connect to target server ({e}); please try again.")
 
 
 def exchange_public_keys(pub_key: Inf, client_sock: socket.socket):
@@ -296,27 +346,17 @@ def exchange_public_keys(pub_key: Inf, client_sock: socket.socket):
     return client_pub_key
 
 
-def accept_new_connection_handler(pvt_key: int, pub_key: Inf, own_sock: socket.socket,
-                                  sockets: list[socket], client_dict: dict):
+def accept_new_connection_handler(self: object, own_sock: socket.socket):
     """
-    A server handler to accept a new client connection, which
+    A handler to accept a new client connection, which
     involves the ECDH public key exchange process and generation
     of shared secret with the client.
 
-    @param pvt_key:
-        The calling class's private key (Server)
-
-    @param pub_key:
-        The calling class's public key (Server)
+    @param self:
+        A reference to the calling class object (Server)
 
     @param own_sock:
-        The socket object of the calling class
-
-    @param sockets:
-        A list of sockets
-
-    @param client_dict:
-        A dictionary containing client information
+        The socket object of the calling class (Server)
 
     @return: None
     """
@@ -324,28 +364,94 @@ def accept_new_connection_handler(pvt_key: int, pub_key: Inf, own_sock: socket.s
     print(f"[+] NEW CONNECTION: Accepted a client connection from ({client_address[0]}, {client_address[1]})!")
 
     # Exchange public keys with the client
-    sockets.append(client_socket)
-    client_pub_key = exchange_public_keys(pub_key, client_socket)
+    self.fd_list.append(client_socket)
+    client_pub_key = exchange_public_keys(self.pub_key, client_socket)
 
     # Receive IV from the client
     client_iv = client_socket.recv(1024)
 
     # Derive the shared secret and compress for AES
-    shared_secret = derive_shared_secret(pvt_key, client_pub_key)
+    shared_secret = derive_shared_secret(self.pvt_key, client_pub_key)
     compressed_shared_secret = compress_shared_secret(shared_secret)
     print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
-          f"session ({compress(shared_secret)})!")
+          f"session ({hex(shared_secret)})!")
 
-    # Send signal to get the name of client
-    client_socket.send(encrypt(b"ACK", compressed_shared_secret, client_iv))
+    # Send signal to prevent hanging
+    client_socket.send(encrypt(self.name.encode(), compressed_shared_secret, client_iv))
 
     # Receive name from the client (encrypted)
     name = decrypt(client_socket.recv(1024), compressed_shared_secret, client_iv).decode()
 
     # Update client dictionary with the new client
-    client_dict[client_address[0]] = [name, compressed_shared_secret, client_iv]
-    print(f"[+] CONNECTION SUCCESS: New client has been added ({name}: [{client_address[0]}, {client_address[1]}])!")
+    self.client_dict[client_address[0]] = [name, compressed_shared_secret, client_iv]
+    print(f"[+] CONNECTION SUCCESS: A secure session has been established!")
 
 
-def send_message(sock: socket.socket):
-    print("PLACEHOLDER")
+def send_message(sock: socket.socket, shared_secret: bytes, IV: bytes):
+    """
+    Prompts user for a plaintext message, encrypts it
+    and send it to a target socket.
+
+    @param sock:
+        The target socket
+
+    @param shared_secret:
+        Bytes of the shared secret key
+
+    @param IV:
+        A randomly generated n-bytes for initialization vector (IV)
+
+    @return: None
+    """
+    message = input("[+] Enter a message to send: ").encode()
+    cipher_text = encrypt(message, shared_secret, IV)
+    sock.send(cipher_text)
+    print("[+] Your message has been successfully sent!")
+
+
+def receive_data(self: object, sock: socket.socket, is_server: bool = False):
+    """
+    Handles the receiving of data (or disconnections) from a socket.
+
+    @param self:
+        A reference to the calling class object
+
+    @param sock:
+        A socket object
+
+    @param is_server:
+        A boolean to determine if calling class is a
+        server (default = False)
+
+    @return: None
+    """
+    # Get address and data from the corresponding socket
+    ip_address, _ = sock.getpeername()
+    data = sock.recv(1024)
+
+    # Handler for Server
+    if is_server:
+        client_info = self.client_dict[ip_address]  # => Get specific client secret {IP: [name, shared_secret, IV]}
+        if data:
+            print(f"[+] Received data from [{client_info[0]}, {ip_address}] (encrypted): {data.decode()}")
+            plain_text = decrypt(data, client_info[1], client_info[2])
+            print(f"[+] Received data from [{client_info[0]}, {ip_address}] (decrypted): {plain_text.decode()}")
+        else:
+            print(f"[+] Connection closed by ({client_info[0]}, {ip_address})")
+            del self.client_dict[ip_address]
+            self.fd_list.remove(sock)
+            sock.close()
+
+    # Handler for Client
+    else:
+        if data:
+            print(f"[+] Received data from [{self.server_name}, {ip_address}] (encrypted): {data.decode()}")
+            plain_text = decrypt(data, self.shared_secret, self.iv)
+            print(f"[+] Received data from [{self.server_name}, {ip_address}] (decrypted): {plain_text.decode()}")
+        else:
+            print(f"[+] Connection closed by ({self.server_name}, {ip_address})")
+            self.server_socket = None
+            self.server_name = None
+            self.shared_secret = None
+            self.fd_list.remove(sock)
+            sock.close()

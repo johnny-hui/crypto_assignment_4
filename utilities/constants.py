@@ -24,7 +24,7 @@ MENU_FIELD_DESC = "Description"
 INPUT_PROMPT = "[+] Select a menu option: "
 CLIENT_MENU_OPTIONS_LIST = [
     ["1", "Connect to a Server"],
-    ["2", "View Server Information"],
+    ["2", "View Current Connection"],
     ["3", "Disconnect (Close Application)"]
 ]
 SERVER_MENU_OPTIONS_LIST = [
@@ -36,3 +36,10 @@ SEND_MESSAGE_OPTION = ["1", "Send Message to Server"]
 INVALID_MENU_SELECTION = "[+] MENU SELECTION: Please enter a valid menu option ({} to {}): "
 INVALID_INPUT_MENU_ERROR = "[+] ERROR: Invalid input was provided to menu: {}"
 MENU_ACTION_START_MSG = "\n[+] ACTION SELECTED: Now performing menu item {}..."
+
+
+CONNECTION_INFO_TITLE = "Current Connections"
+CONNECTION_INFO_FIELD_NAME = "Name"
+CONNECTION_INFO_FIELD_IP = "IP Address"
+CONNECTION_INFO_FIELD_SECRET = "Shared Secret"
+CONNECTION_INFO_FIELD_IV = "Initialization Vector (IV)"
