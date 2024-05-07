@@ -11,7 +11,7 @@ from utilities.constants import (MENU_TITLE, MENU_FIELD_OPTION, MENU_FIELD_DESC,
                                  SEND_MESSAGE_OPTION, SERVER_MENU_OPTIONS_LIST, INVALID_MENU_SELECTION,
                                  MENU_ACTION_START_MSG, INVALID_INPUT_MENU_ERROR, MIN_PORT_VALUE,
                                  MAX_PORT_VALUE, CONNECTION_INFO_FIELD_NAME, CONNECTION_INFO_FIELD_IP,
-                                 CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV)
+                                 CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV, CONNECTION_INFO_TITLE)
 
 
 def derive_shared_secret(pvt_key: int, pub_key):
@@ -155,21 +155,23 @@ def view_current_connections(self: object, is_server: bool = False):
     """
     if len(self.fd_list) > 1:
         table = PrettyTable()  # => Instantiate table and fill with data
+        table.title = CONNECTION_INFO_TITLE
         table.field_names = [CONNECTION_INFO_FIELD_NAME, CONNECTION_INFO_FIELD_IP,
                              CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV]
 
         if is_server:
             for ip, information in self.client_dict.items():  # Format {ip: information = [name, shared_secret, IV]}
-                table.add_row([information[0], ip, information[1], information[2]])
+                table.add_row([information[0], ip, information[1].hex(), information[2].hex()])
         else:
-            table.add_row([self.server_name, self.server_socket.getpeername()[0], self.shared_secret, self.iv])
+            table.add_row([self.server_name, self.server_socket.getpeername()[0],
+                           self.shared_secret.hex(), self.iv.hex()])
 
         print(table)
     else:
         print("[+] VIEW CURRENT CONNECTIONS: There are no current connections to view!")
 
 
-def close_application(self: object, is_server: bool = False):
+def close_application(self: object):
     """
     Terminates the application by closing
     all current socket connections and setting
@@ -178,20 +180,10 @@ def close_application(self: object, is_server: bool = False):
     @param self:
         A reference to the calling class object
 
-    @param is_server:
-        A boolean to determine if calling class is a
-        server (default = False)
-
     @return: None
     """
     print("[+] CLOSE APPLICATION: Now closing the application...")
-
-    # Close all file descriptors in fd_list
-    for fd in self.fd_list[1:] if is_server else self.fd_list:
-        fd.close()
-
-    # Set a terminate flag to terminate all threads
-    self.terminate = True
+    self.terminate = True  # Set a terminate flag to terminate all threads
     print("[+] Application has been successfully terminated!")
 
 
@@ -280,6 +272,9 @@ def connect_to_server(self: object):
     Prompts the user for the target IP address and port, and
     connects to the target using sockets.
 
+    @attention Use Case:
+        Client class only
+
     @raise socket.error
         Exception raised if the target host is offline or
         incorrect host information
@@ -295,7 +290,7 @@ def connect_to_server(self: object):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((target_ip, target_port))
-        print(f"[+] CONNECTION EVENT: Established a connection to server! ({target_ip}, {target_port})")
+        print(f"[+] CONNECTION EVENT: Established a connection to server ({target_ip}, {target_port})")
         print("[+] KEY EXCHANGE: Now exchanging keys with the server...")
 
         # Bind class attributes
@@ -318,12 +313,12 @@ def connect_to_server(self: object):
         shared_secret = derive_shared_secret(self.pvt_key, server_pub_key)
         self.shared_secret = compress_shared_secret(shared_secret)
         print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
-              f"session ({hex(shared_secret)})!")
+              f"session ({compress(shared_secret)})")
 
         # Receive name of server and send own name
         self.server_name = decrypt(sock.recv(1024), self.shared_secret, self.iv).decode('utf-8')
         sock.send(encrypt(self.name.encode('utf-8'), self.shared_secret, self.iv))
-        print(f"[+] CONNECTION SUCCESS: A secure session with {self.server_name} has been established!")
+        print(f"[+] CONNECTION SUCCESS: A secure session with {self.server_name} has been established")
     except socket.error as e:
         print(f"[+] CONNECTION FAILED: Failed to connect to target server ({e}); please try again.")
 
@@ -358,6 +353,9 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
     involves the ECDH public key exchange process and generation
     of shared secret with the client.
 
+    @attention Use Case:
+        Server class only
+
     @param self:
         A reference to the calling class object (Server)
 
@@ -367,7 +365,7 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
     @return: None
     """
     client_socket, client_address = own_sock.accept()
-    print(f"[+] NEW CONNECTION: Accepted a client connection from ({client_address[0]}, {client_address[1]})!")
+    print(f"[+] NEW CONNECTION: Accepted a client connection from ({client_address[0]}, {client_address[1]})")
 
     # Exchange public keys with the client
     self.fd_list.append(client_socket)
@@ -380,7 +378,7 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
     shared_secret = derive_shared_secret(self.pvt_key, client_pub_key)
     compressed_shared_secret = compress_shared_secret(shared_secret)
     print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
-          f"session ({hex(shared_secret)})!")
+          f"session ({compressed_shared_secret.hex()})")
 
     # Send signal to prevent hanging
     client_socket.send(encrypt(self.name.encode(), compressed_shared_secret, client_iv))
@@ -390,7 +388,7 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
 
     # Update client dictionary with the new client
     self.client_dict[client_address[0]] = [name, compressed_shared_secret, client_iv]
-    print(f"[+] CONNECTION SUCCESS: A secure session has been established!")
+    print(f"[+] CONNECTION SUCCESS: A secure session with {name} has been established")
 
 
 def send_message(sock: socket.socket, shared_secret: bytes, IV: bytes):
@@ -443,7 +441,7 @@ def receive_data(self: object, sock: socket.socket, is_server: bool = False):
     if is_server:
         client_info = self.client_dict[ip_address]  # => Get specific client secret {IP: [name, shared_secret, IV]}
         if data:
-            print(f"[+] Received data from [{client_info[0]}, {ip_address}] (encrypted): {data.decode()}")
+            print(f"[+] Received data from [{client_info[0]}, {ip_address}] (encrypted): {data}")
             plain_text = decrypt(data, client_info[1], client_info[2])
             print(f"[+] Received data from [{client_info[0]}, {ip_address}] (decrypted): {plain_text.decode()}")
         else:
@@ -455,13 +453,11 @@ def receive_data(self: object, sock: socket.socket, is_server: bool = False):
     # Handler for Client
     else:
         if data:
-            print(f"[+] Received data from [{self.server_name}, {ip_address}] (encrypted): {data.decode()}")
+            print(f"[+] Received data from [{self.server_name}, {ip_address}] (encrypted): {data}")
             plain_text = decrypt(data, self.shared_secret, self.iv)
             print(f"[+] Received data from [{self.server_name}, {ip_address}] (decrypted): {plain_text.decode()}")
         else:
             print(f"[+] Connection closed by ({self.server_name}, {ip_address})")
-            self.server_socket = None
-            self.server_name = None
-            self.shared_secret = None
+            self.server_socket, self.server_name, self.shared_secret = None, None, None
             self.fd_list.remove(sock)
             sock.close()

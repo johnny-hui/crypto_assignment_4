@@ -92,7 +92,7 @@ class Server:
                         send_message(client_sock, shared_secret, iv)
 
                     if command == 2:
-                        view_current_connections(self)
+                        view_current_connections(self, is_server=True)
 
                     if command == 3:
                         close_application(self, is_server=True)
@@ -113,13 +113,13 @@ class Server:
         """
         if len(self.fd_list) > 1:
             # Print current peers
-            view_current_connections(self.fd_list)
+            view_current_connections(self, is_server=True)
 
             while True:
                 try:
                     # Prompt user selection for a specific client
                     client_index = int(input(SERVER_SELECT_CLIENT_PROMPT.format(1, len(self.client_dict))))
-                    while client_index not in range(0, len(self.client_dict)):
+                    while client_index not in range(1, (len(self.client_dict) + 1)):
                         print("[+] ERROR: Invalid selection range; please enter again.")
                         client_index = int(input(SERVER_SELECT_CLIENT_PROMPT.format(1, len(self.client_dict))))
 
@@ -138,5 +138,5 @@ class Server:
                 except TypeError as e:
                     print(f"[+] ERROR: An invalid selection provided ({e}); please enter again.")
         else:
-            print("[+] ERROR: There are currently no connected clients to send a message to...")
+            print("[+] ERROR: There are currently no connected clients!")
             return None, None, None
