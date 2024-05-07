@@ -171,7 +171,9 @@ def view_current_connections(self: object, is_server: bool = False):
 
 def close_application(self: object, is_server: bool = False):
     """
-    Terminates the application.
+    Terminates the application by closing
+    all current socket connections and setting
+    a termination flag to end all threads.
 
     @param self:
         A reference to the calling class object
@@ -183,10 +185,14 @@ def close_application(self: object, is_server: bool = False):
     @return: None
     """
     print("[+] CLOSE APPLICATION: Now closing the application...")
-    for fd in self.fd_list:
+
+    # Close all file descriptors in fd_list
+    for fd in self.fd_list[1:] if is_server else self.fd_list:
         fd.close()
+
+    # Set a terminate flag to terminate all threads
     self.terminate = True
-    print("[+] Application has been terminated!")
+    print("[+] Application has been successfully terminated!")
 
 
 def get_user_menu_option(fd: TextIO, min_num_options: int, max_num_options: int):
@@ -260,13 +266,13 @@ def __get_target_port():
         try:
             port = int(input("\n[+] Enter the port number of the target server: "))
             while port not in range(MIN_PORT_VALUE, MAX_PORT_VALUE):
-                print("[+] Invalid port number range; please enter again.")
+                print("[+] ERROR: Invalid port number range; please enter again.")
                 port = int(input("\n[+] Enter the port number of the target server: "))
             return port
         except ValueError as e:
-            print(f"[+] Invalid port number ({e}); please enter again.")
+            print(f"[+] ERROR: An invalid port number was provided ({e}); please enter again.")
         except TypeError as e:
-            print(f"[+] Invalid port number ({e}); please enter again.")
+            print(f"[+] ERROR: An invalid port number was provided ({e}); please enter again.")
 
 
 def connect_to_server(self: object):
@@ -403,10 +409,14 @@ def send_message(sock: socket.socket, shared_secret: bytes, IV: bytes):
 
     @return: None
     """
-    message = input("[+] Enter a message to send: ").encode()
-    cipher_text = encrypt(message, shared_secret, IV)
-    sock.send(cipher_text)
-    print("[+] Your message has been successfully sent!")
+    if sock is not None:
+        ip = sock.getpeername()[0]
+        message = input(f"[+] Enter a message to send to ({ip}): ").encode()
+
+        cipher_text = encrypt(message, shared_secret, IV)
+        sock.send(cipher_text)
+
+        print("[+] Your message has been successfully sent!")
 
 
 def receive_data(self: object, sock: socket.socket, is_server: bool = False):

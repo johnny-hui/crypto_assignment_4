@@ -1,8 +1,11 @@
 import secrets
 import select
 import sys
+import threading
+
 from utilities.constants import INPUT_PROMPT, MIN_MENU_ITEM_VALUE, MAX_MENU_ITEM_VALUE, INIT_CLIENT_MSG, \
-    INIT_SUCCESS_MSG, MODE_CLIENT
+    INIT_SUCCESS_MSG, MODE_CLIENT, USER_INPUT_THREAD_NAME, USER_INPUT_START_MSG, USER_MENU_THREAD_TERMINATE, \
+    SELECT_ONE_SECOND_TIMEOUT
 from utilities.init import parse_arguments, generate_keys
 from utilities.utility import display_menu, get_user_menu_option, send_message, connect_to_server, receive_data, \
     view_current_connections, close_application
@@ -30,6 +33,9 @@ class Client:
         terminate - A boolean flag that determines if the server should terminate
     """
     def __init__(self):
+        """
+        A constructor for a Client class object.
+        """
         print(INIT_CLIENT_MSG)
         self.name, self.ip, self.port = parse_arguments()
         self.pvt_key, self.pub_key = generate_keys(mode=MODE_CLIENT)
@@ -42,15 +48,47 @@ class Client:
         print(INIT_SUCCESS_MSG)
 
     def start(self):
+        """
+        Starts the client and monitors any incoming data from
+        a target server.
+
+        @return: None
+        """
+        self.start_user_menu_thread()
+
+        while not self.terminate:
+            readable, _, _ = select.select(self.fd_list, [], [], SELECT_ONE_SECOND_TIMEOUT)
+
+            for fd in readable:
+                if fd is not sys.stdin:
+                    receive_data(self, fd)
+
+    def start_user_menu_thread(self):
+        """
+        Starts a thread for handling user input
+        for the menu.
+
+        @return: None
+        """
+        input_thread = threading.Thread(target=self.__menu, name=USER_INPUT_THREAD_NAME)
+        input_thread.start()
+        print(USER_INPUT_START_MSG)
+
+    def __menu(self):
+        """
+        Displays the menu and handles user input.
+        @return: None
+        """
+        inputs = [sys.stdin]
         print("=" * 80)
-        display_menu(self.is_connected, is_server=False)
+        display_menu(self.is_connected)
         print(INPUT_PROMPT)
 
         while not self.terminate:
-            readable, _, _ = select.select(self.fd_list, [], [])
+            readable, _, _ = select.select(inputs, [], [])
 
+            # Get User Command from the Menu and perform the task
             for fd in readable:
-                # a) Get User Command from the Menu
                 if fd == sys.stdin:
                     command = get_user_menu_option(fd, MIN_MENU_ITEM_VALUE, MAX_MENU_ITEM_VALUE)
 
@@ -65,11 +103,8 @@ class Client:
 
                     if command == 3:
                         close_application(self)
+                        print(USER_MENU_THREAD_TERMINATE)
                         return None
 
-                    display_menu(self.is_connected)
-                    print(INPUT_PROMPT)
-
-                # b) Receive data from server socket (fd)
-                else:
-                    receive_data(self, fd)
+                display_menu(self.is_connected)
+                print(INPUT_PROMPT)
