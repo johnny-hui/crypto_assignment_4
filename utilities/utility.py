@@ -83,7 +83,7 @@ def encrypt(plain_text: bytes, shared_secret: bytes, IV: bytes):
         The encrypted cipher text
     """
     cipher = AES.new(shared_secret, mode=AES.MODE_CBC, iv=IV)
-    ciphertext = cipher.encrypt(pad(plain_text, AES.block_size))  # Default padding with PKCS7
+    ciphertext = cipher.encrypt(pad(plain_text, block_size=32))  # Default padding with PKCS7
     return ciphertext
 
 
@@ -105,7 +105,7 @@ def decrypt(cipher_text: bytes, shared_secret: bytes, IV: bytes):
         An array of bytes containing decrypted data
     """
     cipher = AES.new(shared_secret, AES.MODE_CBC, IV)
-    plain_text = unpad(cipher.decrypt(cipher_text), AES.block_size)
+    plain_text = unpad(cipher.decrypt(cipher_text), block_size=32)
     return plain_text
 
 
@@ -313,12 +313,12 @@ def connect_to_server(self: object):
         shared_secret = derive_shared_secret(self.pvt_key, server_pub_key)
         self.shared_secret = compress_shared_secret(shared_secret)
         print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
-              f"session ({compress(shared_secret)})")
+              f"session ({self.shared_secret.hex()}) | Number of Bytes = {len(self.shared_secret)}")
 
         # Receive name of server and send own name
         self.server_name = decrypt(sock.recv(1024), self.shared_secret, self.iv).decode('utf-8')
         sock.send(encrypt(self.name.encode('utf-8'), self.shared_secret, self.iv))
-        print(f"[+] CONNECTION SUCCESS: A secure session with {self.server_name} has been established")
+        print(f"[+] CONNECTION SUCCESS: A secure session with {self.server_name} has been established!")
     except socket.error as e:
         print(f"[+] CONNECTION FAILED: Failed to connect to target server ({e}); please try again.")
 
@@ -378,7 +378,7 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
     shared_secret = derive_shared_secret(self.pvt_key, client_pub_key)
     compressed_shared_secret = compress_shared_secret(shared_secret)
     print(f"[+] KEY EXCHANGE SUCCESS: A shared secret has been derived for the current "
-          f"session ({compressed_shared_secret.hex()})")
+          f"session ({compressed_shared_secret.hex()}) | Number of Bytes = {len(compressed_shared_secret)}")
 
     # Send signal to prevent hanging
     client_socket.send(encrypt(self.name.encode(), compressed_shared_secret, client_iv))
@@ -388,7 +388,7 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
 
     # Update client dictionary with the new client
     self.client_dict[client_address[0]] = [name, compressed_shared_secret, client_iv]
-    print(f"[+] CONNECTION SUCCESS: A secure session with {name} has been established")
+    print(f"[+] CONNECTION SUCCESS: A secure session with {name} has been established!")
 
 
 def send_message(sock: socket.socket, shared_secret: bytes, IV: bytes):
@@ -441,7 +441,7 @@ def receive_data(self: object, sock: socket.socket, is_server: bool = False):
     if is_server:
         client_info = self.client_dict[ip_address]  # => Get specific client secret {IP: [name, shared_secret, IV]}
         if data:
-            print(f"[+] Received data from [{client_info[0]}, {ip_address}] (encrypted): {data}")
+            print(f"[+] Received data from [{client_info[0]}, {ip_address}] (encrypted): {data.hex()}")
             plain_text = decrypt(data, client_info[1], client_info[2])
             print(f"[+] Received data from [{client_info[0]}, {ip_address}] (decrypted): {plain_text.decode()}")
         else:

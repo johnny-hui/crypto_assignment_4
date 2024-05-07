@@ -95,7 +95,7 @@ class Server:
                         view_current_connections(self, is_server=True)
 
                     if command == 3:
-                        close_application(self, is_server=True)
+                        close_application(self)
                         print(USER_MENU_THREAD_TERMINATE)
                         return None
 
