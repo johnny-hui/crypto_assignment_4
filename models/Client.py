@@ -53,7 +53,7 @@ class Client:
 
         @return: None
         """
-        self.start_user_menu_thread()
+        self.__start_user_menu_thread()
 
         while not self.terminate:
             readable, _, _ = select.select(self.fd_list, [], [], SELECT_ONE_SECOND_TIMEOUT)
@@ -62,7 +62,7 @@ class Client:
                 if fd is self.server_socket:
                     receive_data(self, fd)
 
-    def start_user_menu_thread(self):
+    def __start_user_menu_thread(self):
         """
         Starts a thread for handling user input
         for the menu.

@@ -40,17 +40,6 @@ class Server:
         self.terminate = False
         print(INIT_SUCCESS_MSG)
 
-    def start_user_menu_thread(self):
-        """
-        Starts a thread for handling user input
-        for the menu.
-
-        @return: None
-        """
-        input_thread = threading.Thread(target=self.__menu, name=USER_INPUT_THREAD_NAME)
-        input_thread.start()
-        print(USER_INPUT_START_MSG)
-
     def start(self):
         """
         Starts the server and monitors any incoming connections
@@ -58,7 +47,7 @@ class Server:
 
         @return: None
         """
-        self.start_user_menu_thread()
+        self.__start_user_menu_thread()
 
         while self.terminate is False:
             readable, _, _ = select.select(self.fd_list, [], [], SELECT_ONE_SECOND_TIMEOUT)
@@ -68,6 +57,17 @@ class Server:
                     accept_new_connection_handler(self, sock)
                 else:
                     receive_data(self, sock, is_server=True)
+
+    def __start_user_menu_thread(self):
+        """
+        Starts a thread for handling user input
+        for the menu.
+
+        @return: None
+        """
+        input_thread = threading.Thread(target=self.__menu, name=USER_INPUT_THREAD_NAME)
+        input_thread.start()
+        print(USER_INPUT_START_MSG)
 
     def __menu(self):
         """
@@ -88,7 +88,7 @@ class Server:
                     command = get_user_menu_option(fd, MIN_MENU_ITEM_VALUE, MAX_MENU_ITEM_VALUE)
 
                     if command == 1:
-                        client_sock, shared_secret, iv = self.get_specific_client()
+                        client_sock, shared_secret, iv = self.__get_specific_client()
                         send_message(client_sock, shared_secret, iv)
 
                     if command == 2:
@@ -102,7 +102,7 @@ class Server:
                 display_menu(is_server=True)
                 print(INPUT_PROMPT)
 
-    def get_specific_client(self):
+    def __get_specific_client(self):
         """
         Prompts user to choose a specific client to
         send a message to.
