@@ -458,7 +458,7 @@ def receive_data(self: object, sock: socket.socket, is_server: bool = False):
     # Handler for Client
     else:
         if data:
-            print(f"[+] Received data from [{self.server_name}, {ip_address}] (encrypted): {data}")
+            print(f"[+] Received data from [{self.server_name}, {ip_address}] (encrypted): {data.hex()}")
             plain_text = decrypt(data, self.shared_secret, self.iv)
             print(f"[+] Received data from [{self.server_name}, {ip_address}] (decrypted): {plain_text.decode()}")
         else:
