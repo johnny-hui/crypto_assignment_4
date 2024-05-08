@@ -153,22 +153,27 @@ def view_current_connections(self: object, is_server: bool = False):
 
     @return: None
     """
-    if len(self.fd_list) > 1:
-        table = PrettyTable()  # => Instantiate table and fill with data
-        table.title = CONNECTION_INFO_TITLE
-        table.field_names = [CONNECTION_INFO_FIELD_NAME, CONNECTION_INFO_FIELD_IP,
-                             CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV]
+    # Instantiate table and define title & columns
+    table = PrettyTable()
+    table.title = CONNECTION_INFO_TITLE
+    table.field_names = [CONNECTION_INFO_FIELD_NAME, CONNECTION_INFO_FIELD_IP,
+                         CONNECTION_INFO_FIELD_SECRET, CONNECTION_INFO_FIELD_IV]
 
-        if is_server:
+    # Fill table with data
+    if is_server:
+        if len(self.fd_list) > 1:
             for ip, information in self.client_dict.items():  # Format {ip: information = [name, shared_secret, IV]}
                 table.add_row([information[0], ip, information[1].hex(), information[2].hex()])
+            print(table)
         else:
+            print("[+] VIEW CURRENT CONNECTIONS: There are no current connections to view!")
+    else:
+        if len(self.fd_list) > 0:
             table.add_row([self.server_name, self.server_socket.getpeername()[0],
                            self.shared_secret.hex(), self.iv.hex()])
-
-        print(table)
-    else:
-        print("[+] VIEW CURRENT CONNECTIONS: There are no current connections to view!")
+            print(table)
+        else:
+            print("[+] VIEW CURRENT CONNECTIONS: There are no current connections to view!")
 
 
 def close_application(self: object):

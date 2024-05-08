@@ -138,5 +138,5 @@ class Server:
                 except TypeError as e:
                     print(f"[+] ERROR: An invalid selection provided ({e}); please enter again.")
         else:
-            print("[+] ERROR: There are currently no connected clients!")
+            print("[+] ERROR: There are currently no connected clients to send message!")
             return None, None, None

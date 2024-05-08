@@ -39,7 +39,7 @@ class Client:
         self.name, self.ip, self.port = parse_arguments()
         self.pvt_key, self.pub_key = generate_keys(mode=MODE_CLIENT)
         self.iv = secrets.token_bytes(16)
-        self.fd_list = [sys.stdin]  # => Monitored by select()
+        self.fd_list = []  # => Monitored by select()
         self.server_socket, self.server_name = None, None
         self.shared_secret = None
         self.is_connected = False
@@ -59,7 +59,7 @@ class Client:
             readable, _, _ = select.select(self.fd_list, [], [], SELECT_ONE_SECOND_TIMEOUT)
 
             for fd in readable:
-                if fd is not sys.stdin:
+                if fd is self.server_socket:
                     receive_data(self, fd)
 
     def start_user_menu_thread(self):
