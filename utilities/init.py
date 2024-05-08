@@ -10,9 +10,13 @@ from utilities.constants import INVALID_SRC_IP_ARG_ERROR, INVALID_SRC_PORT_RANGE
 from utilities.utility import compress
 
 
-def parse_arguments():
+def parse_arguments(is_server=False):
     """
     Parse the command line for arguments.
+
+    @param is_server:
+        A boolean to determine if calling class is a
+        server (default = False)
 
     @return name, src_ip, src_port:
         Strings containing name, source IP address and source port
@@ -46,10 +50,12 @@ def parse_arguments():
     # Check if parameters are provided
     if len(name) == 0:
         sys.exit("[+] INIT ERROR: A name was not provided! (-n option)")
-    if len(src_ip) == 0:
-        sys.exit("[+] INIT ERROR: A source IP was not provided! (-s option)")
-    if len(str(src_port)) == 0:
-        sys.exit("[+] INIT ERROR: A source port was not provided! (-p option)")
+
+    if is_server:
+        if len(src_ip) == 0:
+            sys.exit("[+] INIT ERROR: A source IP was not provided! (-s option)")
+        if len(str(src_port)) == 0:
+            sys.exit("[+] INIT ERROR: A source port was not provided! (-p option)")
 
     return name, src_ip, src_port
 

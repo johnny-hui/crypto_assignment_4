@@ -32,7 +32,7 @@ class Server:
         A constructor for a Server class object.
         """
         print(INIT_SERVER_MSG)
-        self.name, self.ip, self.port = parse_arguments()
+        self.name, self.ip, self.port = parse_arguments(is_server=True)
         self.own_socket = initialize_socket(self.ip, self.port)
         self.pvt_key, self.pub_key = generate_keys(mode=MODE_SERVER)
         self.fd_list = [self.own_socket]  # => Monitored by select()
