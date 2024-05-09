@@ -70,7 +70,8 @@ def initialize_socket(ip: str, port: int):
     @param port:
         The port number of the Node
 
-    @return: None
+    @return: sock
+        The target socket
     """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

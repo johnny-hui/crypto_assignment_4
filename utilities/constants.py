@@ -24,7 +24,7 @@ MIN_MENU_ITEM_VALUE = 1
 MAX_MENU_ITEM_VALUE = 3
 MENU_TITLE = "Menu Options"
 MENU_FIELD_OPTION = "Option"
-MENU_FIELD_DESC = "Description"
+MENU_FIELD_DESC = "Command"
 INPUT_PROMPT = "[+] Select a menu option: "
 CLIENT_MENU_OPTIONS_LIST = [
     ["1", "Connect to a Server"],

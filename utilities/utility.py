@@ -178,9 +178,8 @@ def view_current_connections(self: object, is_server: bool = False):
 
 def close_application(self: object):
     """
-    Terminates the application by closing
-    all current socket connections and setting
-    a termination flag to end all threads.
+    Terminates the application by setting a termination flag to
+    end all current threads.
 
     @param self:
         A reference to the calling class object
@@ -399,7 +398,7 @@ def accept_new_connection_handler(self: object, own_sock: socket.socket):
 def send_message(sock: socket.socket, shared_secret: bytes, IV: bytes):
     """
     Prompts user for a plaintext message, encrypts it
-    and send it to a target socket.
+    and sends it to a target socket.
 
     @param sock:
         The target socket

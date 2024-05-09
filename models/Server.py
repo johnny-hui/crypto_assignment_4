@@ -71,7 +71,9 @@ class Server:
 
     def __menu(self):
         """
-        Displays the menu and handles user input.
+        Displays the menu and handles user input
+        using select().
+
         @return: None
         """
         inputs = [sys.stdin]
