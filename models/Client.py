@@ -35,7 +35,7 @@ class Client:
         A constructor for a Client class object.
         """
         print(INIT_CLIENT_MSG)
-        self.name = parse_arguments()
+        self.name, _, _ = parse_arguments()
         self.pvt_key, self.pub_key = generate_keys(mode=MODE_CLIENT)
         self.iv = secrets.token_bytes(16)
         self.fd_list = []  # => Monitored by select()
